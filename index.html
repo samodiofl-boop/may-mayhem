@@ -518,19 +518,24 @@ if (sessionStorage.getItem('sk-auth') === '1') {
 
 </div><!-- /app -->
 
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script>
-firebase.initializeApp({
-  apiKey: "AIzaSyDYSG3MvPw1Wl3XPOEif5jssttojbE-78w",
-  authDomain: "beycome-bingo.firebaseapp.com",
-  databaseURL: "https://beycome-bingo-default-rtdb.firebaseio.com",
-  projectId: "beycome-bingo",
-  storageBucket: "beycome-bingo.firebasestorage.app",
-  messagingSenderId: "413778705184",
-  appId: "1:413778705184:web:40248e383f6c8a028ab545"
-});
-const db = firebase.database();
+var db = null;
+try {
+  firebase.initializeApp({
+    apiKey: "AIzaSyDYSG3MvPw1Wl3XPOEif5jssttojbE-78w",
+    authDomain: "beycome-bingo.firebaseapp.com",
+    databaseURL: "https://beycome-bingo-default-rtdb.firebaseio.com",
+    projectId: "beycome-bingo",
+    storageBucket: "beycome-bingo.firebasestorage.app",
+    messagingSenderId: "413778705184",
+    appId: "1:413778705184:web:40248e383f6c8a028ab545"
+  });
+  db = firebase.database();
+} catch(e) {
+  console.warn('Firebase init failed, running offline:', e);
+}
 const DB_PATH = 'budget/samkat';
 const PASSWORD = 'Kapri2211';
 const TODAY = new Date('2026-04-28');
@@ -685,7 +690,7 @@ function setSync(cls, txt){
   document.getElementById('sync-text').textContent = txt;
 }
 function push(){
-  if(!ready) return;
+  if(!ready || !db) return;
   setSync('syncing','Saving…');
   db.ref(DB_PATH).set({
     spendLog:S.spendLog, debts:S.debts,
@@ -694,6 +699,12 @@ function push(){
   }).then(()=>setSync('','Saved ✓')).catch(()=>setSync('error','Sync error'));
 }
 function listen(){
+  if(!db){
+    ready=true;
+    renderAll();
+    setSync('error','No sync');
+    return;
+  }
   db.ref(DB_PATH).on('value',snap=>{
     const d=snap.val();
     if(d){
