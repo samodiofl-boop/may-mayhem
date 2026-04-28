@@ -493,11 +493,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 </div><!-- /app -->
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-
-const db = getDatabase(initializeApp({
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+firebase.initializeApp({
   apiKey: "AIzaSyDYSG3MvPw1Wl3XPOEif5jssttojbE-78w",
   authDomain: "beycome-bingo.firebaseapp.com",
   databaseURL: "https://beycome-bingo-default-rtdb.firebaseio.com",
@@ -505,7 +504,8 @@ const db = getDatabase(initializeApp({
   storageBucket: "beycome-bingo.firebasestorage.app",
   messagingSenderId: "413778705184",
   appId: "1:413778705184:web:40248e383f6c8a028ab545"
-}));
+});
+const db = firebase.database();
 const DB_PATH = 'budget/samkat';
 const PASSWORD = 'Kapri2211';
 const TODAY = new Date('2026-04-28');
@@ -662,14 +662,14 @@ function setSync(cls, txt){
 function push(){
   if(!ready) return;
   setSync('syncing','Saving…');
-  set(ref(db,DB_PATH),{
+  db.ref(DB_PATH).set({
     spendLog:S.spendLog, debts:S.debts,
     paidBills:S.paidBills, checklist:S.checklist,
     lastUpdate:Date.now(), lastUser:S.user
   }).then(()=>setSync('','Saved ✓')).catch(()=>setSync('error','Sync error'));
 }
 function listen(){
-  onValue(ref(db,DB_PATH),snap=>{
+  db.ref(DB_PATH).on('value',snap=>{
     const d=snap.val();
     if(d){
       S.spendLog  = d.spendLog  || [];
