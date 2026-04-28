@@ -83,10 +83,11 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .txn-date { font-size: 12px; color: var(--muted); }
 .txn-amt { font-size: 14px; font-weight: 700; color: var(--red); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .txn-del { background: none; border: none; color: var(--faint); cursor: pointer; font-size: 20px; padding: 0 4px; line-height: 1; }
-.check-item { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
-.check-item:last-child { border-bottom: none; }
-.check-text { font-size: 14px; }
-.check-text.done { text-decoration: line-through; color: var(--faint); }
+.dp-input { font-family: inherit; font-size: 15px; font-weight: 700; border: 1.5px solid var(--border); border-radius: 8px; padding: 5px 8px; width: 90px; outline: none; color: var(--text); background: var(--bg); -moz-appearance: textfield; }
+.dp-input::-webkit-outer-spin-button, .dp-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.dp-input:focus { border-color: var(--green); }
+.dp-btn { font-family: inherit; font-size: 13px; font-weight: 700; background: var(--green); color: white; border: none; border-radius: 8px; padding: 6px 14px; cursor: pointer; white-space: nowrap; }
+.dp-btn:active { opacity: .8; }
 .insight { background: var(--green-dark); border-radius: 16px; padding: 18px; margin: 14px 16px 0; }
 .insight-badge { display: inline-block; background: rgba(255,255,255,0.15); border-radius: 20px; padding: 4px 12px; font-size: 11px; font-weight: 600; color: white; margin-bottom: 10px; }
 .insight-title { font-size: 19px; font-weight: 800; color: white; line-height: 1.3; margin-bottom: 8px; }
@@ -438,15 +439,15 @@ var BILLS = {
 
 var PLAN = {
   may:{
-    first:  {debt:[{name:'Discover — wipe it out!', e:'💥', amount:1640, note:'One big push kills it before rent goes up in June'}], save:350},
-    second: {debt:[{name:'CareCredit extra payment', e:'🎯', amount:447,  note:'Brings total to $567/mo — on pace to beat Nov deadline'}], save:350},
+    first:  {debt:[{id:'discover',   name:'Discover — wipe it out!',    e:'💥', amount:1640, note:'One big push kills it before rent goes up in June'}], save:350},
+    second: {debt:[{id:'carecredit', name:'CareCredit extra payment',   e:'🎯', amount:447,  note:'Brings total to $567/mo — on pace to beat Nov deadline'}], save:350},
   },
   june:{
-    first:  {debt:[{name:'CareCredit extra', e:'🎯', amount:447, note:'Keep $567/mo to beat Nov deadline'},{name:'Citi Bank extra', e:'💳', amount:744, note:'Route Discover money here now'}], save:350},
+    first:  {debt:[{id:'carecredit', name:'CareCredit extra',  e:'🎯', amount:447, note:'Keep $567/mo to beat Nov deadline'},{id:'citi', name:'Citi Bank extra', e:'💳', amount:744, note:'Route Discover money here now'}], save:350},
     second: {debt:[], save:0},
   },
   july:{
-    first:  {debt:[{name:'CareCredit extra', e:'🎯', amount:280, note:'Stay on track before Nov'},{name:'Citi Bank extra', e:'💳', amount:911, note:'Almost done — finish strong'}], save:350},
+    first:  {debt:[{id:'carecredit', name:'CareCredit extra',  e:'🎯', amount:280, note:'Stay on track before Nov'},{id:'citi', name:'Citi Bank extra', e:'💳', amount:911, note:'Almost done — finish strong'}], save:350},
     second: {debt:[], save:0},
   },
 };
@@ -479,6 +480,7 @@ var S = {
   spendLog: [],
   debts: JSON.parse(JSON.stringify(DEBTS0)),
   paidBills: {},
+  debtPaid: {},
 
 };
 
@@ -580,6 +582,7 @@ function startFirebase() {
           S.spendLog  = d.spendLog  || [];
           S.debts     = d.debts     || JSON.parse(JSON.stringify(DEBTS0));
           S.paidBills = d.paidBills || {};
+          S.debtPaid  = d.debtPaid  || {};
           renderAll();
         }
         setSync('', 'Synced ✓');
@@ -599,7 +602,7 @@ function pushToFirebase() {
     setSync('syncing', 'Saving…');
     window._fbdb.ref('budget/samkat').set({
       spendLog: S.spendLog, debts: S.debts,
-      paidBills: S.paidBills,
+      paidBills: S.paidBills, debtPaid: S.debtPaid,
       lastUpdate: Date.now(), lastUser: S.user,
     }).then(function(){ setSync('','Saved ✓'); })
       .catch(function(){ setSync('error','Sync error'); });
@@ -769,14 +772,31 @@ function renderPaychecks() {
     }).join('');
 
     var debtHtml=plan.debt.length>0
-      ? plan.debt.map(function(d){
-          return '<div class="pc-line">'
+      ? plan.debt.map(function(d,di){
+          var key=mn+'-'+pc+'-debt-'+di;
+          var rec=S.debtPaid[key];
+          if(rec){
+            return '<div class="pc-line">'
+              +'<div class="pc-line-icon">'+d.e+'</div>'
+              +'<div class="pc-line-info">'
+                +'<div class="pc-line-name" style="text-decoration:line-through;color:var(--faint)">'+d.name+'</div>'
+                +'<div class="pc-line-sub">Paid <strong style="color:var(--green)">$'+rec.amount.toLocaleString()+'</strong> · <span style="cursor:pointer;color:var(--muted);text-decoration:underline" onclick="undoDebtPaid(\''+key+'\',\''+d.id+'\')">Undo</span></div>'
+              +'</div>'
+              +'<div class="pc-line-amt green">✓ Done</div>'
+            +'</div>';
+          }
+          return '<div class="pc-line" style="flex-wrap:wrap;gap:6px">'
             +'<div class="pc-line-icon">'+d.e+'</div>'
             +'<div class="pc-line-info">'
               +'<div class="pc-line-name">'+d.name+'</div>'
-              +'<div class="pc-line-sub">'+d.note+'</div>'
+              +'<div class="pc-line-sub">Plan: '+fmt(d.amount)+' · '+d.note+'</div>'
             +'</div>'
             +'<div class="pc-line-amt blue">'+fmt(d.amount)+'</div>'
+            +'<div class="debt-pay-row" style="width:100%;display:flex;align-items:center;gap:8px;padding:6px 0 2px 36px">'
+              +'<span style="font-size:12px;color:var(--muted)">I actually paid:</span>'
+              +'<input id="dp-'+key+'" type="number" value="'+d.amount+'" min="0" step="1" class="dp-input">'
+              +'<button class="dp-btn" onclick="markDebtPaid(\''+key+'\',\''+d.id+'\',\'dp-'+key+'\')">✓ Mark Paid</button>'
+            +'</div>'
           +'</div>';
         }).join('')
       : '<div style="font-size:13px;color:var(--muted);padding:8px 0">✅ Rent takes most of this check — all extra debt payments are on Paycheck 1.</div>';
@@ -803,6 +823,26 @@ function renderPaychecks() {
 
 function toggleBill(key, checked) {
   S.paidBills[key] = checked;
+  pushToFirebase();
+}
+
+function markDebtPaid(key, debtId, inputId) {
+  var amt = parseFloat(document.getElementById(inputId).value) || 0;
+  if (amt <= 0) return;
+  var debt = S.debts.find(function(d){ return d.id === debtId; });
+  if (debt) { debt.balance = Math.max(0, debt.balance - amt); }
+  S.debtPaid[key] = { amount: amt };
+  renderAll();
+  pushToFirebase();
+}
+
+function undoDebtPaid(key, debtId) {
+  var rec = S.debtPaid[key];
+  if (!rec) return;
+  var debt = S.debts.find(function(d){ return d.id === debtId; });
+  if (debt) { debt.balance = debt.balance + rec.amount; }
+  delete S.debtPaid[key];
+  renderAll();
   pushToFirebase();
 }
 
